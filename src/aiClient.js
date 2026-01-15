@@ -25,7 +25,7 @@ export async function rewriteFour(rawText) {
 
   const user = `Text: "${text}"
 Return JSON with keys work,family,friend,crush.
-work=formal/professional. family=warm/caring, respectful, no slang, for older generation. friend=casual, cool/chill, slang/abbr ok, not too polite, for younger generation. crush=Warm/caring,charming,slightly flirty. Not cringe.`;
+work=formal/professional. family=warm/caring, positive, no slang, for older generation. friend=casual, cool/chill, slang/abbr ok, not too polite, for younger generation. crush=Warm/caring,charming,flirty. Not cringe.`;
 
   const completion = await openai.chat.completions.create({
     model: "gpt-4.1-mini", // fast/cheap; keep

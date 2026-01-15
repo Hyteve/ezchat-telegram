@@ -65,14 +65,14 @@ bot.on("inline_query", async (ctx) => {
       {
         type: "article",
         id: "family",
-        title: "🏠 Family (warm, respectful)",
+        title: "🏠 Family (warm, positive)",
         description: truncate(family),
         input_message_content: { message_text: family }
       },
       {
         type: "article",
         id: "friend",
-        title: "😎 Friend (cool, slang)",
+        title: "😎 Friend (cool, young)",
         description: truncate(friend),
         input_message_content: { message_text: friend }
       },
