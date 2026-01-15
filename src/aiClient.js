@@ -20,11 +20,11 @@ export async function rewriteFour(rawText) {
 
   // Brief system + user to reduce tokens but still guide well
   const system =
-    "Rewrite short chat messages for a non-native English speaker. Preserve meaning. Keep it concise. Return ONLY valid JSON.";
+    "Rewrite short chat messages. Preserve meaning. Keep it concise. Make sure output language is same as input. Return ONLY valid JSON.";
 
   const user = `Text: "${text}"
 Return JSON with keys work,family,friend,crush.
-work=formal/professional. family=warm/caring, no slang. friend=casual, slang/abbr ok, not too polite. crush=warm/flirty subtle, emojis ok.`;
+work=formal/professional. family=warm/caring, no slang. friend=casual, slang/abbr ok, not too polite. crush=Warm,charming,slightly flirty. Not cringe.`;
 
   const completion = await openai.chat.completions.create({
     model: "gpt-4.1-mini", // fast/cheap; keep
