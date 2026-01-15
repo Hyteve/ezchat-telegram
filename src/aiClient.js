@@ -3,19 +3,10 @@ import OpenAI from "openai";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-const RECIPIENT_GUIDE = {
-  boss: "Professional, concise, respectful. No slang. Clear ask, polite tone.",
-  coworker: "Friendly-professional. Clear, efficient. Light warmth ok, no excessive emojis.",
-  client: "Client-facing: polite, confident, helpful. Clear next steps. No slang.",
-  friend: "Use slangs. Casual, natural, relaxed. Light humor ok. Optional 0-1 emoji if it fits.",
-  crush: "Warm, charming, slightly flirty but subtle. Not cringe. Keep it short.",
-  family: "Warm, respectful, natural. Clear and caring tone."
-};
+// Use env override if you want, default to gpt-5-nano
+const MODEL = process.env.OPENAI_MODEL || "gpt-5-nano";
 
-function stripToTag(text) {
-  return (text || "").replace(/\bto:(boss|coworker|client|friend|crush|family)\b/gi, "").trim();
-}
-
+// Tiny helper just in case (Structured Outputs should already give valid JSON)
 function cleanJsonString(str) {
   if (!str) return str;
   return str
@@ -26,92 +17,93 @@ function cleanJsonString(str) {
     .trim();
 }
 
-// Single rewrite: default “authentic + correct”
-export async function rewriteMessage(rawText) {
-  const text = stripToTag(rawText);
-  if (!text) throw new Error("Empty message");
+/**
+ * Returns 4 rewrites in one call:
+ * - work: most formal/professional
+ * - family: warm/caring, no slang
+ * - friend: slang/abbr, younger-gen, not too polite
+ * - crush: warm/charming, subtle flirty, emojis ok if fit
+ */
+export async function rewriteV2All(text) {
+  const input = (text || "").trim();
+  if (!input) throw new Error("Empty message");
 
-  const system = `
-You rewrite short chat messages for a non-native English speaker.
+  // Keep prompt brief to reduce tokens + latency
+  const developer = `Rewrite chat msg for non-native speaker. Preserve meaning. Keep concise. No extra info. Output JSON only.`;
 
-Hard rules:
-- Preserve meaning and intent.
-- Fix grammar and make it sound natural, authentic chat English.
-- Keep it concise. Avoid overexplaining.
-- Do NOT add new info not implied.
-- Output ONLY the rewritten message. No quotes, no labels.
-  `.trim();
+  const user = `Msg: "${input}"
+Make 4 variants:
+work=formal/pro
+family=warm+caring,no slang
+friend=slang/abbr,cool,not too polite
+crush=warm/charming,subtle flirty,emojis ok if fit
+Return JSON: {"work":"..","family":"..","friend":"..","crush":".."}.`;
 
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4.1-mini",
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: `Rewrite this message:\n"${text}"` }
-    ],
-    temperature: 0.2,
-    max_tokens: 80
-  });
+  const responseFormat = {
+    type: "json_schema",
+    json_schema: {
+      name: "rewrite_v2",
+      strict: true,
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          work: { type: "string" },
+          family: { type: "string" },
+          friend: { type: "string" },
+          crush: { type: "string" }
+        },
+        required: ["work", "family", "friend", "crush"]
+      }
+    }
+  };
 
-  return completion.choices[0].message.content.trim();
-}
-
-// Dual rewrite in ONE call: returns { natural, tailored }
-export async function rewriteDual(rawText, recipientType) {
-  const text = stripToTag(rawText);
-  if (!text) throw new Error("Empty message");
-  if (!recipientType) throw new Error("Missing recipientType");
-
-  const guide = RECIPIENT_GUIDE[recipientType] || "";
-
-  const system = `
-You rewrite short chat messages for a non-native English speaker.
-
-Hard rules:
-- Preserve meaning and intent.
-- Keep it concise and natural.
-- Do NOT add new info not implied.
-- Return ONLY valid JSON. No markdown. No explanations.
-  `.trim();
-
-  const user = `
-Original message:
-"${text}"
-
-Create two rewrites:
-1) "natural": authentic + grammatically correct (general)
-2) "tailored": adapted for recipient type "${recipientType}" using this guidance:
-${guide || "N/A"}
-
-Return EXACTLY this JSON shape:
-{"natural":"...","tailored":"..."}
-  `.trim();
-
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4.1-mini",
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: user }
-    ],
-    temperature: 0.3,
-    max_tokens: 140
-  });
-
-  const raw = completion.choices[0].message.content;
-  const cleaned = cleanJsonString(raw);
-
-  let parsed;
+  // Prefer low reasoning effort for speed/cost on GPT-5 family
+  // If a model/account rejects reasoning_effort, we retry once without it.
   try {
-    parsed = JSON.parse(cleaned);
-  } catch (e) {
-    // fallback: if JSON parse fails, degrade gracefully
+    const completion = await openai.chat.completions.create({
+      model: MODEL,
+      messages: [
+        { role: "developer", content: developer },
+        { role: "user", content: user }
+      ],
+      response_format: responseFormat,
+      reasoning_effort: "minimal",
+      temperature: 0.4,
+      max_tokens: 220,
+      store: false
+    });
+
+    const raw = completion.choices?.[0]?.message?.content || "";
+    const parsed = JSON.parse(cleanJsonString(raw));
+
     return {
-      natural: await rewriteMessage(text),
-      tailored: await rewriteMessage(text) // worst case: duplicate
+      work: (parsed.work || "").trim(),
+      family: (parsed.family || "").trim(),
+      friend: (parsed.friend || "").trim(),
+      crush: (parsed.crush || "").trim()
+    };
+  } catch (err) {
+    // Retry once without reasoning_effort (some configs may reject it)
+    const completion = await openai.chat.completions.create({
+      model: MODEL,
+      messages: [
+        { role: "developer", content: developer },
+        { role: "user", content: user }
+      ],
+      response_format: responseFormat,
+      max_completion_tokens: 220,
+      store: false
+    });
+
+    const raw = completion.choices?.[0]?.message?.content || "";
+    const parsed = JSON.parse(cleanJsonString(raw));
+
+    return {
+      work: (parsed.work || "").trim(),
+      family: (parsed.family || "").trim(),
+      friend: (parsed.friend || "").trim(),
+      crush: (parsed.crush || "").trim()
     };
   }
-
-  return {
-    natural: (parsed.natural || "").trim() || text,
-    tailored: (parsed.tailored || "").trim() || text
-  };
 }

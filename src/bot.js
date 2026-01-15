@@ -1,52 +1,71 @@
 // src/bot.js
 import { Telegraf } from "telegraf";
-import { rewriteMessage, rewriteDual } from "./aiClient.js";
+import { rewriteV2All } from "./aiClient.js";
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const BOT_USERNAME = "ezezchatbot"; // your bot username (no @)
+const BOT_USERNAME = "ezezchatbot";
 
 if (!BOT_TOKEN) throw new Error("TELEGRAM_BOT_TOKEN is not set");
 
 export const bot = new Telegraf(BOT_TOKEN);
 
-const RECIPIENT_TYPES = ["boss", "coworker", "client", "friend", "crush", "family"];
-
 function truncate(text, length = 80) {
   if (!text) return "";
-  return text.length > length ? text.slice(0, length - 1) + "…" : text;
-}
-
-function parseRecipientAndText(query) {
-  const match = query.match(/\bto:(boss|coworker|client|friend|crush|family)\b/i);
-  const recipient = match ? match[1].toLowerCase() : null;
-  const cleanedText = query.replace(/\bto:(boss|coworker|client|friend|crush|family)\b/gi, "").trim();
-  return { recipient, cleanedText };
+  const t = text.replace(/\s+/g, " ").trim();
+  return t.length > length ? t.slice(0, length - 1) + "…" : t;
 }
 
 bot.start(async (ctx) => {
   await ctx.reply(
-    `Hi! I rewrite your message into authentic, natural English.
+    `Hi! I rewrite your message in 4 styles (work/family/friend/crush).
 
-Inline usage:
-- Default: @${BOT_USERNAME} your message
-- Recipient-aware: @${BOT_USERNAME} to:boss your message
+Inline usage (any chat):
+@${BOT_USERNAME} your message
 
-Recipient types: ${RECIPIENT_TYPES.map((t) => `to:${t}`).join(", ")}`
+Then choose one:
+💼 Work  | 👨‍👩‍👧‍👦 Family | 😎 Friend | 💖 Crush`
   );
 });
 
 bot.command("help", async (ctx) => {
   await ctx.reply(
-    `Inline usage:
-• Default: @${BOT_USERNAME} your message
-• Recipient-aware: @${BOT_USERNAME} to:boss your message
+    `Use inline mode:
+@${BOT_USERNAME} your message
 
-Recipient types:
-${RECIPIENT_TYPES.map((t) => `- to:${t}`).join("\n")}`
+You'll get 4 options:
+💼 Work (most formal)
+👨‍👩‍👧‍👦 Family (warm, no slang)
+😎 Friend (slang/abbr)
+💖 Crush (charming, emojis ok)`
   );
 });
 
-// Inline queries
+// Optional: direct chat with bot returns all 4 too
+bot.on("text", async (ctx) => {
+  const text = ctx.message.text?.trim();
+  if (!text) return;
+
+  // If message was inserted via inline bot, ignore
+  if (ctx.message.via_bot && ctx.message.via_bot.username === BOT_USERNAME) return;
+
+  try {
+    await ctx.reply("✨ Rewriting (work / family / friend / crush)...");
+    const v = await rewriteV2All(text);
+
+    const msg =
+      `💼 *Work*\n${v.work}\n\n` +
+      `👨‍👩‍👧‍👦 *Family*\n${v.family}\n\n` +
+      `😎 *Friend*\n${v.friend}\n\n` +
+      `💖 *Crush*\n${v.crush}`;
+
+    await ctx.reply(msg, { parse_mode: "Markdown" });
+  } catch (err) {
+    console.error(err);
+    await ctx.reply("Oops—something went wrong. Try again in a moment 😢");
+  }
+});
+
+// Inline queries: always show all 4 variants
 bot.on("inline_query", async (ctx) => {
   const query = (ctx.inlineQuery.query || "").trim();
 
@@ -57,29 +76,9 @@ bot.on("inline_query", async (ctx) => {
           type: "article",
           id: "hint",
           title: "Type a message to rewrite",
-          description: `Example: @${BOT_USERNAME} to:friend i am late sorry`,
+          description: `Example: @${BOT_USERNAME} sorry i reply late, i was busy`,
           input_message_content: {
-            message_text: `Example (default): "Sorry—I'm running a bit late."\nExample (recipient): "@${BOT_USERNAME} to:boss I’m running late today."`
-          }
-        }
-      ],
-      { cache_time: 0 }
-    );
-  }
-
-  const { recipient, cleanedText } = parseRecipientAndText(query);
-
-  if (!cleanedText) {
-    // user typed only "to:boss" etc.
-    return ctx.answerInlineQuery(
-      [
-        {
-          type: "article",
-          id: "need-text",
-          title: "Add your message after the recipient tag",
-          description: `Example: @${BOT_USERNAME} to:boss can we reschedule to tomorrow?`,
-          input_message_content: {
-            message_text: "Tip: Type your draft message after the recipient tag."
+            message_text: "Tip: type your draft after @ezezchatbot"
           }
         }
       ],
@@ -88,53 +87,45 @@ bot.on("inline_query", async (ctx) => {
   }
 
   try {
-    const results = [];
-  
-    if (!recipient) {
-      // ONE call only
-      const natural = await rewriteMessage(cleanedText);
-  
-      results.push({
+    const v = await rewriteV2All(query);
+
+    const results = [
+      {
         type: "article",
-        id: "natural",
-        title: "✅ A better response: (click here to send)",
-        description: truncate(natural),
-        input_message_content: { message_text: natural }
-      });
-  
-      results.push({
+        id: "work",
+        title: "💼 Work (formal)",
+        description: truncate(v.work),
+        input_message_content: { message_text: v.work }
+      },
+      {
         type: "article",
-        id: "howto",
-        title: "➕ Try adding recipient: ",
-        description: "Use: to:boss / to:friend / to:client / to:crush / to:coworker / to:family before your message",
-        input_message_content: { message_text: natural }
-      });
-  
-    } else {
-      // STILL ONE call (returns both)
-      const { natural, tailored } = await rewriteDual(cleanedText, recipient);
-  
-      results.push({
+        id: "family",
+        title: "👨‍👩‍👧‍👦 Family (warm)",
+        description: truncate(v.family),
+        input_message_content: { message_text: v.family }
+      },
+      {
         type: "article",
-        id: "natural",
-        title: "✅ Natural (authentic + correct)",
-        description: truncate(natural),
-        input_message_content: { message_text: natural }
-      });
-  
-      results.push({
+        id: "friend",
+        title: "😎 Friend (slang/abbr)",
+        description: truncate(v.friend),
+        input_message_content: { message_text: v.friend }
+      },
+      {
         type: "article",
-        id: `tailored-${recipient}`,
-        title: `🎯 Tailored for ${recipient}`,
-        description: truncate(tailored),
-        input_message_content: { message_text: tailored }
-      });
-    }
-  
-    await ctx.answerInlineQuery(results, { cache_time: 0, is_personal: true });
+        id: "crush",
+        title: "💖 Crush (charming)",
+        description: truncate(v.crush),
+        input_message_content: { message_text: v.crush }
+      }
+    ];
+
+    await ctx.answerInlineQuery(results, {
+      cache_time: 0,
+      is_personal: true
+    });
   } catch (err) {
     console.error("Inline query error:", err);
     await ctx.answerInlineQuery([], { cache_time: 0 });
   }
-
 });
