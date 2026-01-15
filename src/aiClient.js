@@ -3,10 +3,6 @@ import OpenAI from "openai";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// Use env override if you want, default to gpt-5-nano
-const MODEL = process.env.OPENAI_MODEL || "gpt-5-nano";
-
-// Tiny helper just in case (Structured Outputs should already give valid JSON)
 function cleanJsonString(str) {
   if (!str) return str;
   return str
@@ -17,93 +13,50 @@ function cleanJsonString(str) {
     .trim();
 }
 
-/**
- * Returns 4 rewrites in one call:
- * - work: most formal/professional
- * - family: warm/caring, no slang
- * - friend: slang/abbr, younger-gen, not too polite
- * - crush: warm/charming, subtle flirty, emojis ok if fit
- */
-export async function rewriteV2All(text) {
-  const input = (text || "").trim();
-  if (!input) throw new Error("Empty message");
+// Single call -> 4 variants
+export async function rewriteFour(rawText) {
+  const text = (rawText || "").trim();
+  if (!text) throw new Error("Empty message");
 
-  // Keep prompt brief to reduce tokens + latency
-  const developer = `Rewrite chat msg for non-native speaker. Preserve meaning. Keep concise. No extra info. Output JSON only.`;
+  // Brief system + user to reduce tokens but still guide well
+  const system =
+    "Rewrite short chat messages for a non-native English speaker. Preserve meaning. Keep it concise. Return ONLY valid JSON.";
 
-  const user = `Msg: "${input}"
-Make 4 variants:
-work=formal/pro
-family=warm+caring,no slang
-friend=slang/abbr,cool,not too polite
-crush=warm/charming,subtle flirty,emojis ok if fit
-Return JSON: {"work":"..","family":"..","friend":"..","crush":".."}.`;
+  const user = `Text: "${text}"
+Return JSON with keys work,family,friend,crush.
+work=formal/professional. family=warm/caring, no slang. friend=casual, slang/abbr ok, not too polite. crush=warm/flirty subtle, emojis ok.`;
 
-  const responseFormat = {
-    type: "json_schema",
-    json_schema: {
-      name: "rewrite_v2",
-      strict: true,
-      schema: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          work: { type: "string" },
-          family: { type: "string" },
-          friend: { type: "string" },
-          crush: { type: "string" }
-        },
-        required: ["work", "family", "friend", "crush"]
-      }
-    }
-  };
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4.1-mini", // fast/cheap; keep
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: user }
+    ],
+    temperature: 0.5,
+    max_tokens: 220
+  });
 
-  // Prefer low reasoning effort for speed/cost on GPT-5 family
-  // If a model/account rejects reasoning_effort, we retry once without it.
+  const raw = completion.choices?.[0]?.message?.content || "";
+  const cleaned = cleanJsonString(raw);
+
+  let parsed;
   try {
-    const completion = await openai.chat.completions.create({
-      model: MODEL,
-      messages: [
-        { role: "developer", content: developer },
-        { role: "user", content: user }
-      ],
-      response_format: responseFormat,
-      reasoning_effort: "minimal",
-      temperature: 0.4,
-      max_tokens: 220,
-      store: false
-    });
-
-    const raw = completion.choices?.[0]?.message?.content || "";
-    const parsed = JSON.parse(cleanJsonString(raw));
-
+    parsed = JSON.parse(cleaned);
+  } catch (e) {
+    // Fallback: if model returns non-JSON, degrade gracefully to same text
     return {
-      work: (parsed.work || "").trim(),
-      family: (parsed.family || "").trim(),
-      friend: (parsed.friend || "").trim(),
-      crush: (parsed.crush || "").trim()
-    };
-  } catch (err) {
-    // Retry once without reasoning_effort (some configs may reject it)
-    const completion = await openai.chat.completions.create({
-      model: MODEL,
-      messages: [
-        { role: "developer", content: developer },
-        { role: "user", content: user }
-      ],
-      response_format: responseFormat,
-      max_completion_tokens: 220,
-      store: false
-    });
-
-    const raw = completion.choices?.[0]?.message?.content || "";
-    const parsed = JSON.parse(cleanJsonString(raw));
-
-    return {
-      work: (parsed.work || "").trim(),
-      family: (parsed.family || "").trim(),
-      friend: (parsed.friend || "").trim(),
-      crush: (parsed.crush || "").trim()
+      work: text,
+      family: text,
+      friend: text,
+      crush: text
     };
   }
+
+  // Ensure all keys exist, fallback to original
+  return {
+    work: (parsed.work || "").trim() || text,
+    family: (parsed.family || "").trim() || text,
+    friend: (parsed.friend || "").trim() || text,
+    crush: (parsed.crush || "").trim() || text
+  };
 }
