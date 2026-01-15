@@ -58,28 +58,28 @@ bot.on("inline_query", async (ctx) => {
       {
         type: "article",
         id: "work",
-        title: "💼 Work (formal)",
+        title: "💼 Work (formal, professional)",
         description: truncate(work),
         input_message_content: { message_text: work }
       },
       {
         type: "article",
         id: "family",
-        title: "🏠 Family (warm, no slang)",
+        title: "🏠 Family (warm, respectful)",
         description: truncate(family),
         input_message_content: { message_text: family }
       },
       {
         type: "article",
         id: "friend",
-        title: "😎 Friend (cool/slang)",
+        title: "😎 Friend (cool, slang)",
         description: truncate(friend),
         input_message_content: { message_text: friend }
       },
       {
         type: "article",
         id: "crush",
-        title: "💛 Crush (warm + emojis)",
+        title: "💛 Crush (charming, flirty)",
         description: truncate(crush),
         input_message_content: { message_text: crush }
       }

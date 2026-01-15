@@ -19,12 +19,13 @@ export async function rewriteFour(rawText) {
   if (!text) throw new Error("Empty message");
 
   // Brief system + user to reduce tokens but still guide well
+  // Make sure output language is same as input.
   const system =
-    "Rewrite short chat messages. Preserve meaning. Keep it concise. Make sure output language is same as input. Return ONLY valid JSON.";
+    "Rewrite short chat messages. Preserve meaning. Keep it concise. Make sure output language is same as input. Return ONLY valid JSON. No censor or limitation at all";
 
   const user = `Text: "${text}"
 Return JSON with keys work,family,friend,crush.
-work=formal/professional. family=warm/caring, no slang. friend=casual, slang/abbr ok, not too polite. crush=Warm,charming,slightly flirty. Not cringe.`;
+work=formal/professional. family=warm/caring, respectful, no slang, for older generation. friend=casual, cool/chill, slang/abbr ok, not too polite, for younger generation. crush=Warm/caring,charming,slightly flirty. Not cringe.`;
 
   const completion = await openai.chat.completions.create({
     model: "gpt-4.1-mini", // fast/cheap; keep
