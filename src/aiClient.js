@@ -43,12 +43,13 @@ Rewrite this message to be authentic and grammatically correct:
   `.trim();
 
   const completion = await openai.chat.completions.create({
-    model: "gpt-5-nano", // fast model; can swap later
+    model: "gpt-5-mini", // fast model; can swap later
     messages: [
       { role: "system", content: system },
       { role: "user", content: user }
-    ],
-    temperature: recipientType ? 0.6 : 0.4,
+    ]
+    // temperature: recipientType ? 0.6 : 0.4,
+    // max_tokens: 120
   });
 
   return completion.choices[0].message.content.trim();
