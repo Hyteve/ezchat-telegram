@@ -97,7 +97,7 @@ bot.on("inline_query", async (ctx) => {
       results.push({
         type: "article",
         id: "natural",
-        title: "A better response: (click here to send)",
+        title: "✅ A better response: (click here to send)",
         description: truncate(natural),
         input_message_content: { message_text: natural }
       });
@@ -105,7 +105,7 @@ bot.on("inline_query", async (ctx) => {
       results.push({
         type: "article",
         id: "howto",
-        title: "Try adding recipient: ",
+        title: "➕ Try adding recipient: ",
         description: "Use: to:boss / to:friend / to:client / to:crush / to:coworker / to:family before your message",
         input_message_content: { message_text: natural }
       });
