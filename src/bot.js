@@ -121,7 +121,7 @@ bot.on("inline_query", async (ctx) => {
         type: "article",
         id: "howto",
         title: "➕ Add recipient (optional)",
-        description: `Use: to:boss / to:friend / to:client ...`,
+        description: `Use: to:boss / to:friend / to:client / to:crush / to:coworker / to:family`,
         input_message_content: {
           message_text: natural // still inserts something useful if tapped
         }

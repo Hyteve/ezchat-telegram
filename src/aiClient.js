@@ -7,7 +7,7 @@ const RECIPIENT_GUIDE = {
   boss: "Professional, concise, respectful. No slang. Clear ask, polite tone.",
   coworker: "Friendly-professional. Clear, efficient. Light warmth ok, no excessive emojis.",
   client: "Client-facing: polite, confident, helpful. Clear next steps. No slang.",
-  friend: "Casual, natural, relaxed. Light humor ok. Optional 0-1 emoji if it fits.",
+  friend: "Casual, natural, relaxed. Light humor ok. Can use slangs. Optional 0-1 emoji if it fits.",
   crush: "Warm, charming, slightly flirty but subtle. Not cringe. Keep it short.",
   family: "Warm, respectful, natural. Clear and caring tone."
 };
