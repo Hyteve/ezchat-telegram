@@ -49,7 +49,6 @@ Rewrite this message to be authentic and grammatically correct:
       { role: "user", content: user }
     ],
     temperature: recipientType ? 0.6 : 0.4,
-    max_tokens: 120
   });
 
   return completion.choices[0].message.content.trim();
