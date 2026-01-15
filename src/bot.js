@@ -1,6 +1,6 @@
 // src/bot.js
 import { Telegraf } from "telegraf";
-import { rewriteMessage } from "./aiClient.js";
+import { rewriteMessage, rewriteDual } from "./aiClient.js";
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const BOT_USERNAME = "ezezchatbot"; // your bot username (no @)
@@ -88,26 +88,40 @@ bot.on("inline_query", async (ctx) => {
   }
 
   try {
-    // Always generate default "Natural" rewrite
-    const natural = await rewriteMessage(cleanedText, null);
-
-    // If recipient specified, also generate tailored rewrite
-    let tailored = null;
-    if (recipient) {
-      tailored = await rewriteMessage(cleanedText, recipient);
-    }
-
     const results = [];
-
-    results.push({
-      type: "article",
-      id: "natural",
-      title: "✅ Natural (authentic + correct)",
-      description: truncate(natural),
-      input_message_content: { message_text: natural }
-    });
-
-    if (recipient && tailored) {
+  
+    if (!recipient) {
+      // ONE call only
+      const natural = await rewriteMessage(cleanedText);
+  
+      results.push({
+        type: "article",
+        id: "natural",
+        title: "A better response: (click here to send)",
+        description: truncate(natural),
+        input_message_content: { message_text: natural }
+      });
+  
+      results.push({
+        type: "article",
+        id: "howto",
+        title: "Try adding recipient: ",
+        description: "Use: to:boss / to:friend / to:client / to:crush / to:coworker / to:family before your message",
+        input_message_content: { message_text: natural }
+      });
+  
+    } else {
+      // STILL ONE call (returns both)
+      const { natural, tailored } = await rewriteDual(cleanedText, recipient);
+  
+      results.push({
+        type: "article",
+        id: "natural",
+        title: "✅ Natural (authentic + correct)",
+        description: truncate(natural),
+        input_message_content: { message_text: natural }
+      });
+  
       results.push({
         type: "article",
         id: `tailored-${recipient}`,
@@ -115,22 +129,12 @@ bot.on("inline_query", async (ctx) => {
         description: truncate(tailored),
         input_message_content: { message_text: tailored }
       });
-    } else {
-      // Optional: show a hint card that doesn't spam chats with instructions
-      results.push({
-        type: "article",
-        id: "howto",
-        title: "➕ Add recipient (optional)",
-        description: `Use: to:boss / to:friend / to:client / to:crush / to:coworker / to:family`,
-        input_message_content: {
-          message_text: natural // still inserts something useful if tapped
-        }
-      });
     }
-
+  
     await ctx.answerInlineQuery(results, { cache_time: 0, is_personal: true });
   } catch (err) {
     console.error("Inline query error:", err);
     await ctx.answerInlineQuery([], { cache_time: 0 });
   }
+
 });
